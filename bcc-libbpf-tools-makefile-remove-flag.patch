@@ -1,0 +1,11 @@
+--- BUILD/bcc-0.36.1-build/bcc-0.36.1/libbpf-tools/Makefile	2026-02-09 06:19:21.000000000 -0500
++++ BUILD/bcc-0.36.1-build/bcc-0.36.1/libbpf-tools/Makefile-fix	2026-04-28 19:01:39.734388343 -0400
+@@ -187,7 +187,7 @@
+ 
+ $(APPS): %: $(OUTPUT)/%.o $(COMMON_OBJ) $(LIBBPF_OBJ) | $(OUTPUT)
+ 	$(call msg,BINARY,$@)
+-	$(Q)$(CC) $(CFLAGS) $^ $(LDFLAGS) -lelf -lz -o $@
++	$(Q)$(CC) $(CFLAGS) $^ $(LDFLAGS) -lelf -lz $@
+ 
+ ifeq ($(USE_BLAZESYM),1)
+ $(patsubst %,$(OUTPUT)/%.o,$(BZ_APPS)): $(OUTPUT)/blazesym.h
