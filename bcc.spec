@@ -118,7 +118,7 @@ cd ../..
 pushd libbpf-tools;
 #move files to the correct directory
 mv blazesym/blazesym-capi-v0.1.7/{.,}* blazesym
-
+#run `cargo vendor` from within libbpf-tool/blazesym before building
 cat >> blazesym/.cargo/config.toml << EOF
 [source.crates-io]
 replace-with = "vendored-sources"
