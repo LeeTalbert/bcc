@@ -11,3 +11,13 @@ diff a/libbpf-tools/Makefile b/libbpf-tools/Makefile
  
  ifeq ($(USE_BLAZESYM),1)
  $(patsubst %,$(OUTPUT)/%.o,$(BZ_APPS)): $(OUTPUT)/blazesym.h
+
+@@ -197,7 +197,7 @@
+ 
+ $(OUTPUT)/%.o: %.c $(wildcard %.h) $(LIBBPF_OBJ) | $(OUTPUT)
+ 	$(call msg,CC,$@)
+-	$(Q)$(CC) $(CFLAGS) $(INCLUDES) -c $(filter %.c,$^) -o $@
++	$(Q)$(CC) $(CFLAGS) $(INCLUDES) -c $(filter %.c,$^) $@
+ 
+ $(OUTPUT)/%.skel.h: $(OUTPUT)/%.bpf.o | $(OUTPUT) $(BPFTOOL)
+ 	$(call msg,GEN-SKEL,$@)
