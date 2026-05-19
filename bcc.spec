@@ -1,5 +1,3 @@
-BuildArch: x86_64
-
 %define major 0
 %define libname %mklibname bcc %{major}
 %define devname %mklibname bcc -d
@@ -19,9 +17,10 @@ Url:		https://github.com/iovisor/bcc
 Source0:	%{url}/archive/v%{version}/%{name}-%{version}.tar.gz
 Source1:	https://github.com/libbpf/blazesym/archive/refs/tags/capi-v0.1.7.tar.gz
 Source2:	blazesym-vendor-%{name}%{version}.tar.xz
-Patch:		bcc-libbpf-tools-makefile-remove-flag.patch	
+Patch:		bcc-libbpf-tools-makefile-remove-flags.patch	
 BuildRequires:	bison
 BuildRequires:	cmake
+BuildRequires:	rust-packaging
 BuildRequires:	git
 %if %{with lua}
 BuildRequires:	luajit
@@ -52,7 +51,7 @@ performance analysis and network traffic control.
 
 %package devel
 Summary:        Shared library for BPF Compiler Collection (BCC)
-Requires:       %{name}%{?_isa} = %{version}-%{release}
+Requires:       %{name}
 Suggests:       elfutils-debuginfod-client
 %description devel
 The %{name}-devel package contains libraries and header files for developing
@@ -60,15 +59,15 @@ application that use BPF Compiler Collection (BCC).
 #----
 %package doc
 Summary:        Examples for BPF Compiler Collection (BCC)
-Recommends:     python-%{name} = %{version}-%{release}
-Recommends:     %{name}-lua = %{version}-%{release}
+Recommends:     python-%{name}
+Recommends:     %{name}-lua
 BuildArch:      noarch
 %description doc
 Examples for BPF Compiler Collection (BCC)
 #----
 %package -n python-%{name}
 Summary:        Python3 bindings for BPF Compiler Collection (BCC)
-Requires:       %{name} = %{version}-%{release}
+Requires:       %{name}
 BuildArch:      noarch
 %description -n python-%{name}
 Python3 bindings for BPF Compiler Collection (BCC)
@@ -76,15 +75,15 @@ Python3 bindings for BPF Compiler Collection (BCC)
 %if %{with lua}
 %package lua
 Summary:        Standalone tool to run BCC tracers written in Lua
-Requires:       %{name}%{?_isa} = %{version}-%{release}
+Requires:       %{name}
 %description lua
 Standalone tool to run BCC tracers written in Lua
 %endif
 #----
 %package tools
 Summary:        Command line tools for BPF Compiler Collection (BCC)
-Requires:       bcc = %{version}-%{release}
-Requires:       python-%{name} = %{version}-%{release}
+Requires:       %{name}
+Requires:       python-%{name}
 Requires:       python%{pyver}dist(netaddr)
 %description tools
 Command line tools for BPF Compiler Collection (BCC)
@@ -103,19 +102,19 @@ tar -xf %{S:1} -C libbpf-tools/blazesym
 tar -xf %{S:2} -C libbpf-tools/blazesym
 
 %build
+# Install bps to /usr/bin
+sed -i "s,share/bcc/introspection,bin," introspection/CMakeLists.txt
+export LD_LIBRARY_PATH="%{_builddir}/usr/%{_lib}"
+export PATH="%{_builddir}/usr/bin":$PATH
+
 %cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo \
        -DREVISION_LAST=%{version} -DREVISION=%{version} -DPYTHON_CMD=python3 \
        -DCMAKE_USE_LIBBPF_PACKAGE:BOOL=TRUE -DENABLE_NO_PIE=OFF \
        %{?with_llvm_shared:-DENABLE_LLVM_SHARED=1}
 %cmake build
-	
-# It was discussed and agreed to package libbpf-tools with
-# 'bpf-' prefix (https://github.com/iovisor/bcc/pull/3263)
-# Installing libbpf-tools binaries in temp directory and
-# renaming them in there and the install code will just
-# take them.
+
 cd ../..
-pushd libbpf-tools;
+pushd libbpf-tools
 #move files to the correct directory
 mv blazesym/blazesym-capi-v0.1.7/{.,}* blazesym
 #run `cargo vendor` from within libbpf-tool/blazesym before building
@@ -133,8 +132,32 @@ directory = "vendor"
 
 EOF
 
-%make_build BPFTOOL=bpftool LIBBPF_OBJ=%{_libdir}/libbpf.a CFLAGS="%{optflags} -Wno-implicit-int-float-conversion" LDFLAGS="%{build_ldflags}"
+#Create missing directories
+#mkdir bashreadline bindsnoop biolatency biopattern biosnoop \
+#	biostacks biotop bitesize cachestat capable \
+#	cpudist cpufreq drsnoop execsnoop exitsnoop \
+#	filelife filetop fsdist fsslower funclatency futexctn \
+#	gethostlatency hardirqs javagc klockstat ksnoop \
+#	llcstat mdflush memleak mountsnoop numamove offcputime \
+#	runqslower sigsnoop slabratetop softirqs solisten \
+#	statsnoop syncsnoop syscount tcptracer tcpconnect \
+#	tcpconnlat tcplife tcppktlat tcprtt tcpstates \
+#	tcpsynbl tcptop vfsstat wakeuptime
 	
+%make_build BPFTOOL=bpftool LIBBPF_OBJ=%{_libdir}/libbpf.a CFLAGS="%{optflags} -Wno-implicit-int-float-conversion" LDFLAGS="%{build_ldflags}"
+
+popd
+	
+%install
+%cmake install
+# Fix python shebangs
+find %{buildroot}%{_datadir}/%{name}/{tools,examples} -type f -exec \
+  sed -i -e '1s=^#!/usr/bin/python\([0-9.]\+\)\?$=#!%{__python3}=' \
+         -e '1s=^#!/usr/bin/env python\([0-9.]\+\)\?$=#!%{__python3}=' \
+         -e '1s=^#!/usr/bin/env bcc-lua$=#!/usr/bin/bcc-lua=' {} \;
+
+pushd libbpf-tools
+# package libbpf-tools with 'bpf-' prefix (iovisor/bcc#3263)
 %make_install DESTDIR=./tmp-install prefix=
 (
     cd tmp-install/bin
@@ -149,15 +172,6 @@ EOF
     done
 )
 popd
-	
-%install
-%cmake_install
-	
-# Fix python shebangs
-find %{buildroot}%{_datadir}/%{name}/{tools,examples} -type f -exec \
-  sed -i -e '1s=^#!/usr/bin/python\([0-9.]\+\)\?$=#!%{__python3}=' \
-         -e '1s=^#!/usr/bin/env python\([0-9.]\+\)\?$=#!%{__python3}=' \
-         -e '1s=^#!/usr/bin/env bcc-lua$=#!/usr/bin/bcc-lua=' {} \;
 	
 # Move man pages to the right location
 mkdir -p %{buildroot}%{_mandir}
